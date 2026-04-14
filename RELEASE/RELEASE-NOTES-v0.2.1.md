@@ -21,11 +21,11 @@ This is a **z-stream patch release** for HyperFleet 0.2, addressing critical CVE
 
 ## Component Versions
 
-| Component | Version | Container Image |
-|-----------|---------|-----------------|
-| **HyperFleet API** | v0.2.1 | `quay.io/openshift-hyperfleet/hyperfleet-api:v0.2.1` |
-| **HyperFleet Sentinel** | v0.2.1 | `quay.io/openshift-hyperfleet/hyperfleet-sentinel:v0.2.1` |
-| **HyperFleet Adapter** | v0.2.1 | `quay.io/openshift-hyperfleet/hyperfleet-adapter:v0.2.1` |
+| Component | Version | Container Image | SHA256 Digest |
+|-----------|---------|-----------------|---------------|
+| **HyperFleet API** | v0.2.1 | `quay.io/openshift-hyperfleet/hyperfleet-api:v0.2.1` | `c2957324b525fbd7d5ec776f4a395783599e6a878fb3f5993edc06371f1579bd` |
+| **HyperFleet Sentinel** | v0.2.1 | `quay.io/openshift-hyperfleet/hyperfleet-sentinel:v0.2.1` | `973b9ecd23f5515df4d1da4431f0403178e9e9739b99cb5559e1326f43a242c8` |
+| **HyperFleet Adapter** | v0.2.1 | `quay.io/openshift-hyperfleet/hyperfleet-adapter:v0.2.1` | `cbc27c94e77cdd09693305ef89d475a96089dcbfce1d3ff88634362da25b2ad8` |
 
 ## Bug Fixes
 
