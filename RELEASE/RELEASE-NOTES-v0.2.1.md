@@ -59,6 +59,12 @@ This is a **z-stream patch release** for HyperFleet 0.2, addressing critical CVE
 - **Description:** Standardized the version command output format across all HyperFleet components for consistency.
 - **Tracking:** [HYPERFLEET-819](https://redhat.atlassian.net/browse/HYPERFLEET-819)
 
+### ManifestWork Go template support for lists and conditionals
+
+- **Component:** Adapter
+- **Description:** Fixed ManifestWork manifest templates to support Go template lists and conditionals (e.g., `range`, `if`) when defined with adapters.
+- **Tracking:** [HYPERFLEET-864](https://redhat.atlassian.net/browse/HYPERFLEET-864)
+
 ## Known Issues
 
 | Issue Description | Severity | Workaround (if applicable) | Internal Tracking Link |
