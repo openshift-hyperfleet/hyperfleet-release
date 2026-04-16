@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperfleet Changelogs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2.5em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .changelogs {
+            display: grid;
+            gap: 30px;
+        }
+
+        .changelog-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .changelog-header {
+            background: #34495e;
+            color: white;
+            padding: 15px 20px;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .changelog-content {
+            padding: 20px;
+        }
+
+        .version-entry {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .version-entry:last-child {
+            border-bottom: none;
+        }
+
+        .version-title {
+            color: #2c3e50;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .version-date {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+
+        .changelog-content h2 {
+            color: #2c3e50;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .changelog-content h3 {
+            color: #34495e;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+
+        .changelog-content ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .changelog-content li {
+            margin-bottom: 5px;
+        }
+
+        .changelog-content code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            input[type="text"] {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Hyperfleet Changelogs</h1>
+
+        <div class="controls">
+            <div class="filter-group">
+                <label for="versionFilter">Filter by version:</label>
+                <input type="text" id="versionFilter" placeholder="e.g., 1.0.0 or v1.0">
+            </div>
+            <button id="clearFilter">Clear Filter</button>
+            <button id="refreshBtn">Refresh Changelogs</button>
+        </div>
+
+        <div id="errorContainer"></div>
+        <div id="loadingContainer"></div>
+        <div id="changelogsContainer"></div>
+    </div>
+
+    <script>
+        const CHANGELOGS = [
+            {
+                name: 'Hyperfleet API',
+                url: 'https://raw.githubusercontent.com/openshift-hyperfleet/hyperfleet-api/main/CHANGELOG.md'
+            },
+            {
+                name: 'Hyperfleet Sentinel',
+                url: 'https://raw.githubusercontent.com/openshift-hyperfleet/hyperfleet-sentinel/main/CHANGELOG.md'
+            }
+        ];
+
+        let changelogData = [];
+        let currentFilter = '';
+
+        // Parse changelog markdown into structured data
+        function parseChangelog(markdown, sourceName) {
+            const lines = markdown.split('\n');
+            const versions = [];
+            let currentVersion = null;
+            let currentContent = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                // Match version headers like ## [1.0.0] or ## v1.0.0 or ## 1.0.0
+                const versionMatch = line.match(/^##\s+\[?v?(\d+\.\d+\.\d+[^\]]*)\]?\s*-?\s*(.*)$/i);
+
+                if (versionMatch) {
+                    // Save previous version if exists
+                    if (currentVersion) {
+                        versions.push({
+                            version: currentVersion.version,
+                            date: currentVersion.date,
+                            content: currentContent.join('\n').trim(),
+                            source: sourceName
+                        });
+                    }
+
+                    // Start new version
+                    currentVersion = {
+                        version: versionMatch[1],
+                        date: versionMatch[2] || ''
+                    };
+                    currentContent = [];
+                } else if (currentVersion) {
+                    currentContent.push(line);
+                }
+            }
+
+            // Add last version
+            if (currentVersion) {
+                versions.push({
+                    version: currentVersion.version,
+                    date: currentVersion.date,
+                    content: currentContent.join('\n').trim(),
+                    source: sourceName
+                });
+            }
+
+            return versions;
+        }
+
+        // Convert markdown to HTML
+        function markdownToHtml(markdown) {
+            let html = markdown;
+
+            // Headers
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // Italic
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            // Code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+            // Lists
+            const listItems = html.split('\n').map(line => {
+                if (line.trim().match(/^[-*]\s+/)) {
+                    return '<li>' + line.trim().replace(/^[-*]\s+/, '') + '</li>';
+                }
+                return line;
+            });
+
+            html = listItems.join('\n');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, match => '<ul>' + match + '</ul>');
+
+            // Paragraphs
+            html = html.split('\n\n').map(para => {
+                if (!para.trim().match(/^<[uh]/)) {
+                    return '<p>' + para + '</p>';
+                }
+                return para;
+            }).join('\n');
+
+            return html;
+        }
+
+        // Fetch all changelogs
+        async function fetchChangelogs() {
+            const loadingContainer = document.getElementById('loadingContainer');
+            const errorContainer = document.getElementById('errorContainer');
+            const changelogsContainer = document.getElementById('changelogsContainer');
+
+            loadingContainer.innerHTML = '<div class="loading">Loading changelogs...</div>';
+            errorContainer.innerHTML = '';
+            changelogsContainer.innerHTML = '';
+            changelogData = [];
+
+            try {
+                const promises = CHANGELOGS.map(async (changelog) => {
+                    const response = await fetch(changelog.url);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${changelog.name}: ${response.statusText}`);
+                    }
+                    const text = await response.text();
+                    return {
+                        name: changelog.name,
+                        versions: parseChangelog(text, changelog.name)
+                    };
+                });
+
+                const results = await Promise.all(promises);
+                changelogData = results;
+
+                loadingContainer.innerHTML = '';
+                renderChangelogs();
+            } catch (error) {
+                loadingContainer.innerHTML = '';
+                errorContainer.innerHTML = `<div class="error">Error loading changelogs: ${error.message}</div>`;
+                console.error('Error fetching changelogs:', error);
+            }
+        }
+
+        // Render changelogs with optional filtering
+        function renderChangelogs() {
+            const container = document.getElementById('changelogsContainer');
+            container.innerHTML = '';
+
+            const filter = currentFilter.toLowerCase().trim();
+            let hasResults = false;
+
+            changelogData.forEach(changelog => {
+                const filteredVersions = filter
+                    ? changelog.versions.filter(v => v.version.toLowerCase().includes(filter))
+                    : changelog.versions;
+
+                if (filteredVersions.length > 0) {
+                    hasResults = true;
+                    const section = document.createElement('div');
+                    section.className = 'changelog-section';
+
+                    const header = document.createElement('div');
+                    header.className = 'changelog-header';
+                    header.textContent = changelog.name;
+                    section.appendChild(header);
+
+                    const content = document.createElement('div');
+                    content.className = 'changelog-content';
+
+                    filteredVersions.forEach(version => {
+                        const versionEntry = document.createElement('div');
+                        versionEntry.className = 'version-entry';
+
+                        const versionTitle = document.createElement('div');
+                        versionTitle.className = 'version-title';
+                        versionTitle.textContent = `Version ${version.version}`;
+                        versionEntry.appendChild(versionTitle);
+
+                        if (version.date) {
+                            const versionDate = document.createElement('div');
+                            versionDate.className = 'version-date';
+                            versionDate.textContent = version.date;
+                            versionEntry.appendChild(versionDate);
+                        }
+
+                        const versionContent = document.createElement('div');
+                        versionContent.innerHTML = markdownToHtml(version.content);
+                        versionEntry.appendChild(versionContent);
+
+                        content.appendChild(versionEntry);
+                    });
+
+                    section.appendChild(content);
+                    container.appendChild(section);
+                }
+            });
+
+            if (!hasResults) {
+                container.innerHTML = '<div class="no-results">No versions found matching your filter.</div>';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('versionFilter').addEventListener('input', (e) => {
+            currentFilter = e.target.value;
+            renderChangelogs();
+        });
+
+        document.getElementById('clearFilter').addEventListener('click', () => {
+            document.getElementById('versionFilter').value = '';
+            currentFilter = '';
+            renderChangelogs();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            fetchChangelogs();
+        });
+
+        // Load changelogs on page load
+        fetchChangelogs();
+    </script>
+</body>
+</html>
