@@ -1,0 +1,120 @@
+name: RC E2E Trigger
+on:
+  push:
+    tags:
+      - 'release-*-rc*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to test (e.g., release-0.3-rc1)'
+        required: true
+        type: string
+
+jobs:
+  trigger-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Parse manifest
+        id: manifest
+        run: |
+          API_VERSION=$(yq '.components.hyperfleet-api' RELEASE_MANIFEST.yaml)
+          SENTINEL_VERSION=$(yq '.components.hyperfleet-sentinel' RELEASE_MANIFEST.yaml)
+          ADAPTER_VERSION=$(yq '.components.hyperfleet-adapter' RELEASE_MANIFEST.yaml)
+          E2E_REF=$(yq '.e2e_ref' RELEASE_MANIFEST.yaml)
+
+          # Strip v prefix — Quay tags use labels.version which strips it
+          echo "api_tag=${API_VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "sentinel_tag=${SENTINEL_VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "adapter_tag=${ADAPTER_VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "e2e_ref=${E2E_REF}" >> "$GITHUB_OUTPUT"
+          echo "release=$(yq '.release' RELEASE_MANIFEST.yaml)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify images exist in Quay
+        run: |
+          REGISTRY="quay.io/redhat-services-prod/hyperfleet-tenant/hyperfleet"
+          FAILED=0
+
+          for PAIR in \
+            "hyperfleet-api:${{ steps.manifest.outputs.api_tag }}" \
+            "hyperfleet-sentinel:${{ steps.manifest.outputs.sentinel_tag }}" \
+            "hyperfleet-adapter:${{ steps.manifest.outputs.adapter_tag }}"; do
+
+            COMPONENT="${PAIR%%:*}"
+            TAG="${PAIR##*:}"
+            echo "Checking ${REGISTRY}/${COMPONENT}:${TAG}..."
+
+            if skopeo inspect "docker://${REGISTRY}/${COMPONENT}:${TAG}" > /dev/null 2>&1; then
+              echo "  Found"
+            else
+              echo "  ERROR: ${COMPONENT}:${TAG} not found"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "One or more RC images missing from Quay. Ensure Konflux builds completed."
+            exit 1
+          fi
+
+      - name: Trigger Prow E2E via Gangway
+        env:
+          GANGWAY_TOKEN: ${{ secrets.GANGWAY_API_TOKEN }}
+        run: |
+          JOB_NAME="periodic-ci-openshift-hyperfleet-hyperfleet-e2e-main-rc-e2e-rc-e2e"
+          GANGWAY_URL="https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/${JOB_NAME}"
+
+          PAYLOAD=$(jq -n \
+            --arg api_tag "${{ steps.manifest.outputs.api_tag }}" \
+            --arg sentinel_tag "${{ steps.manifest.outputs.sentinel_tag }}" \
+            --arg adapter_tag "${{ steps.manifest.outputs.adapter_tag }}" \
+            --arg e2e_ref "${{ steps.manifest.outputs.e2e_ref }}" \
+            '{
+              job_execution_type: "1",
+              pod_spec_options: {
+                envs: {
+                  MULTISTAGE_PARAM_OVERRIDE_API_IMAGE_TAG: $api_tag,
+                  MULTISTAGE_PARAM_OVERRIDE_SENTINEL_IMAGE_TAG: $sentinel_tag,
+                  MULTISTAGE_PARAM_OVERRIDE_ADAPTER_IMAGE_TAG: $adapter_tag,
+                  MULTISTAGE_PARAM_OVERRIDE_E2E_REF: $e2e_ref,
+                  MULTISTAGE_PARAM_OVERRIDE_NAMESPACE_PREFIX: "rc-e2e"
+                }
+              }
+            }')
+
+          for ATTEMPT in 1 2 3; do
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "Authorization: Bearer ${GANGWAY_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}" \
+              "${GANGWAY_URL}")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Prow RC E2E triggered successfully"
+              echo "$BODY" | jq .
+              {
+                echo "### RC E2E Triggered"
+                echo "- **Release:** ${{ steps.manifest.outputs.release }}"
+                echo "- **E2E ref:** ${{ steps.manifest.outputs.e2e_ref }}"
+                echo "- **API:** ${{ steps.manifest.outputs.api_tag }}"
+                echo "- **Sentinel:** ${{ steps.manifest.outputs.sentinel_tag }}"
+                echo "- **Adapter:** ${{ steps.manifest.outputs.adapter_tag }}"
+                echo "- **Job ID:** $(echo "$BODY" | jq -r '.id // "unknown"')"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            echo "Attempt ${ATTEMPT}: Gangway returned HTTP ${HTTP_CODE}"
+            echo "$BODY"
+            [ "$ATTEMPT" -lt 3 ] && sleep 60
+          done
+
+          echo "ERROR: Gangway trigger failed after 3 attempts"
+          exit 1
