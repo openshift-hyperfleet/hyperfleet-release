@@ -1,0 +1,6 @@
+release: "0.3"
+e2e_ref: main
+components:
+  hyperfleet-api: v0.3.0-dev
+  hyperfleet-sentinel: v0.3.0-dev
+  hyperfleet-adapter: v0.3.0-dev
