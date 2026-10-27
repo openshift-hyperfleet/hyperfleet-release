@@ -2,6 +2,10 @@
 
 This repository contains official release documentation for the HyperFleet project.
 
+Temporary documentation change to verify the organization-level CodeRabbit integration
+for [HYPERFLEET-1802](https://redhat.atlassian.net/browse/HYPERFLEET-1802).
+This verification change is not intended to be merged.
+
 ### Components
 
 | Component | Repository |
